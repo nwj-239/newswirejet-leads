@@ -1,0 +1,1094 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BlitzAPI Lead Search — NewsWireJet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f11;
+    --surface: #161719;
+    --surface2: #1e2023;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #f0f0f0;
+    --muted: #888;
+    --accent: #00d68f;
+    --accent2: #00a86e;
+    --warn: #f5a623;
+    --danger: #ff5c5c;
+    --info: #5c9fff;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── TOP NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    height: 54px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    color: var(--text);
+    text-transform: uppercase;
+  }
+  .nav-brand .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: .4; }
+  }
+  .nav-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .badge-plan {
+    font-size: 11px;
+    font-family: var(--mono);
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    background: rgba(0,214,143,0.07);
+  }
+  #creditsDisplay {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  #creditsDisplay span { color: var(--accent); }
+
+  /* ── MAIN LAYOUT ── */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 2rem 4rem;
+  }
+
+  /* ── PAGE HEADER ── */
+  .page-header {
+    margin-bottom: 2rem;
+  }
+  .page-header h1 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: -.02em;
+    margin-bottom: 4px;
+  }
+  .page-header p {
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  /* ── METRIC CARDS ── */
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 1.75rem;
+  }
+  .metric-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    transition: border-color .2s;
+  }
+  .metric-card:hover { border-color: var(--border2); }
+  .metric-card .mc-label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+  .metric-card .mc-value {
+    font-size: 22px;
+    font-weight: 600;
+    font-family: var(--mono);
+    color: var(--text);
+  }
+  .metric-card .mc-value.green { color: var(--accent); }
+  .metric-card .mc-sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  /* ── TABS ── */
+  .tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1.5rem;
+  }
+  .tab-btn {
+    padding: 9px 18px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .15s, border-color .15s;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── FORM GRID ── */
+  .form-section {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 1.25rem 0 .75rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .form-section::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+
+  label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  input, select, textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 8px 11px;
+    font-size: 13px;
+    font-family: var(--sans);
+    color: var(--text);
+    outline: none;
+    transition: border-color .15s, background .15s;
+  }
+  input:focus, select:focus {
+    border-color: var(--accent);
+    background: rgba(0,214,143,0.04);
+  }
+  input::placeholder { color: #444; }
+  select option { background: #1e2023; }
+
+  /* ── PILL TOGGLES ── */
+  .pill-wrap { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pill {
+    padding: 5px 11px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 500;
+    font-family: var(--mono);
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--muted);
+    transition: all .15s;
+    user-select: none;
+  }
+  .pill:hover { border-color: var(--accent); color: var(--accent); }
+  .pill.on {
+    background: rgba(0,214,143,0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ── ACTIONS BAR ── */
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 1.25rem 0;
+    flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    font-weight: 500;
+    font-family: var(--sans);
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    background: var(--surface2);
+    color: var(--text);
+    transition: all .15s;
+  }
+  .btn:hover { border-color: var(--border2); background: #292b2e; }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0e0f11;
+    font-weight: 600;
+  }
+  .btn.primary:hover { background: var(--accent2); border-color: var(--accent2); }
+  .btn.ghost { border-color: var(--border); background: transparent; color: var(--muted); }
+  .btn.ghost:hover { color: var(--text); border-color: var(--border2); }
+  .btn.export-btn {
+    border-color: #2a4a3a;
+    background: rgba(0,214,143,0.07);
+    color: var(--accent);
+  }
+  .btn.export-btn:hover { background: rgba(0,214,143,0.14); }
+
+  .status-badge {
+    font-size: 12px;
+    font-family: var(--mono);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .status-badge.ok { color: var(--accent); border-color: rgba(0,214,143,0.25); background: rgba(0,214,143,0.07); }
+  .status-badge.err { color: var(--danger); border-color: rgba(255,92,92,0.25); background: rgba(255,92,92,0.07); }
+
+  /* ── RESULTS TABLE ── */
+  .results-wrap {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .results-header strong { color: var(--text); font-family: var(--mono); }
+  .tbl-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead th {
+    padding: 9px 14px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .07em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    color: var(--text);
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: rgba(255,255,255,0.02); }
+  .td-name { font-weight: 500; }
+  .td-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .link-pill {
+    display: inline-block;
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 2px 7px;
+    border-radius: 10px;
+    border: 1px solid rgba(92,159,255,0.3);
+    color: var(--info);
+    background: rgba(92,159,255,0.07);
+    text-decoration: none;
+    transition: background .15s;
+  }
+  .link-pill:hover { background: rgba(92,159,255,0.14); }
+  .status-pill {
+    display: inline-block;
+    font-size: 10px;
+    font-family: var(--mono);
+    padding: 2px 7px;
+    border-radius: 10px;
+    border: 1px solid rgba(0,214,143,0.3);
+    color: var(--accent);
+    background: rgba(0,214,143,0.07);
+  }
+  .empty-state {
+    padding: 3rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .empty-icon { font-size: 32px; margin-bottom: 8px; opacity: .3; }
+
+  /* ── SPINNER ── */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(0,214,143,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── PAGINATION INFO ── */
+  .pg-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 10px 18px;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    font-size: 13px;
+    color: var(--text);
+    z-index: 9999;
+    transform: translateY(80px);
+    opacity: 0;
+    transition: all .3s cubic-bezier(.34,1.56,.64,1);
+    pointer-events: none;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.green { border-color: rgba(0,214,143,0.4); color: var(--accent); }
+  #toast.red { border-color: rgba(255,92,92,0.4); color: var(--danger); }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    .container { padding: 1rem 1rem 3rem; }
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+    nav { padding: 0 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <span class="dot"></span>
+    NewsWireJet &nbsp;·&nbsp; Lead Search
+  </div>
+  <div class="nav-right">
+    <span class="badge-plan" id="planBadge">—</span>
+    <span id="creditsDisplay">credits: <span id="creditsNum">—</span></span>
+  </div>
+</nav>
+
+<div class="container">
+
+  <div class="page-header">
+    <h1>BlitzAPI lead search</h1>
+    <p>Search 380M+ verified B2B contacts · export CSV instantly</p>
+  </div>
+
+  <!-- METRICS -->
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="mc-label">Credits left</div>
+      <div class="mc-value green" id="m-credits">—</div>
+      <div class="mc-sub" id="m-reset">Resets —</div>
+    </div>
+    <div class="metric-card">
+      <div class="mc-label">Rate limit</div>
+      <div class="mc-value" id="m-rate">—</div>
+      <div class="mc-sub">requests / sec</div>
+    </div>
+    <div class="metric-card">
+      <div class="mc-label">Search results</div>
+      <div class="mc-value" id="m-loaded">0</div>
+      <div class="mc-sub">loaded this session</div>
+    </div>
+    <div class="metric-card">
+      <div class="mc-label">Account status</div>
+      <div class="mc-value" id="m-status" style="font-size:14px;color:var(--muted)">Checking…</div>
+      <div class="mc-sub" id="m-plan">—</div>
+    </div>
+  </div>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('people', this)">Find people</button>
+    <button class="tab-btn" onclick="switchTab('company', this)">Company search</button>
+    <button class="tab-btn" onclick="switchTab('enrich', this)">Email enrichment</button>
+  </div>
+
+  <!-- ───── FIND PEOPLE ───── -->
+  <div id="tab-people" class="tab-panel active">
+    <div class="form-section">Company filters</div>
+    <div class="grid-2">
+      <div>
+        <label>Industries to include</label>
+        <input id="p-ind-inc" placeholder="e.g. marketing, SaaS, PR, media">
+      </div>
+      <div>
+        <label>Industries to exclude</label>
+        <input id="p-ind-exc" placeholder="e.g. retail, food, gaming">
+      </div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <label>Company name (include)</label>
+        <input id="p-co-inc" placeholder="e.g. Acme, HubSpot">
+      </div>
+      <div>
+        <label>HQ country codes</label>
+        <input id="p-hq-cc" placeholder="e.g. US, CA, GB" value="US">
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <label>Employee range (click to select)</label>
+      <div class="pill-wrap" id="emp-pills">
+        <span class="pill" data-v="1-10">1–10</span>
+        <span class="pill" data-v="11-50">11–50</span>
+        <span class="pill" data-v="51-200">51–200</span>
+        <span class="pill" data-v="201-500">201–500</span>
+        <span class="pill" data-v="501-1000">501–1k</span>
+        <span class="pill" data-v="1001-5000">1k–5k</span>
+        <span class="pill" data-v="5001-10000">5k–10k</span>
+        <span class="pill" data-v="10001+">10k+</span>
+      </div>
+    </div>
+
+    <div class="form-section">Person filters</div>
+    <div class="grid-2">
+      <div>
+        <label>Job title (include)</label>
+        <input id="p-jt-inc" placeholder="e.g. CEO, Founder, VP Marketing, Director">
+      </div>
+      <div>
+        <label>Job title (exclude)</label>
+        <input id="p-jt-exc" placeholder="e.g. intern, assistant, coordinator">
+      </div>
+    </div>
+    <div class="grid-4">
+      <div>
+        <label>Person country codes</label>
+        <input id="p-loc-cc" placeholder="e.g. US, CA" value="US">
+      </div>
+      <div>
+        <label>Min LinkedIn connections</label>
+        <input id="p-min-conn" type="number" placeholder="e.g. 500">
+      </div>
+      <div>
+        <label>Results per page (max 50)</label>
+        <input id="p-max" type="number" value="25" min="1" max="50">
+      </div>
+      <div style="display:flex;align-items:flex-end">
+        <label style="display:none">action</label>
+        <label for="p-headline">
+          <input type="checkbox" id="p-headline" style="width:auto;margin-right:5px">
+          Search headline too
+        </label>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" onclick="searchPeople(false)" id="searchPeopleBtn">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg>
+        Search
+      </button>
+      <button class="btn ghost" onclick="searchPeople(true)" id="nextPeopleBtn" style="display:none">Load next page →</button>
+      <button class="btn export-btn" onclick="exportCSV('people')" id="exportPeopleBtn" style="display:none">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/></svg>
+        Download CSV
+      </button>
+      <button class="btn ghost" onclick="clearResults('people')" id="clearPeopleBtn" style="display:none">Clear</button>
+      <span id="peopleStatus" style="display:none" class="status-badge"></span>
+    </div>
+    <div id="peopleResults"></div>
+  </div>
+
+  <!-- ───── COMPANY SEARCH ───── -->
+  <div id="tab-company" class="tab-panel">
+    <div class="form-section">Company filters</div>
+    <div class="grid-2">
+      <div>
+        <label>Industries to include</label>
+        <input id="c-ind-inc" placeholder="e.g. SaaS, fintech, media">
+      </div>
+      <div>
+        <label>Industries to exclude</label>
+        <input id="c-ind-exc" placeholder="e.g. retail, gaming">
+      </div>
+    </div>
+    <div class="grid-2">
+      <div>
+        <label>Company keywords</label>
+        <input id="c-kw-inc" placeholder="e.g. PR, press release, distribution">
+      </div>
+      <div>
+        <label>HQ country codes</label>
+        <input id="c-hq-cc" placeholder="e.g. US, CA" value="US">
+      </div>
+    </div>
+    <div class="grid-4">
+      <div>
+        <label>Min employees</label>
+        <input id="c-emp-min" type="number" placeholder="e.g. 5">
+      </div>
+      <div>
+        <label>Max employees</label>
+        <input id="c-emp-max" type="number" placeholder="e.g. 500">
+      </div>
+      <div>
+        <label>Founded after year</label>
+        <input id="c-year-min" type="number" placeholder="e.g. 2015">
+      </div>
+      <div>
+        <label>Results per page (max 50)</label>
+        <input id="c-max" type="number" value="25" min="1" max="50">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" onclick="searchCompany(false)" id="searchCoBtn">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg>
+        Search
+      </button>
+      <button class="btn ghost" onclick="searchCompany(true)" id="nextCoBtn" style="display:none">Load next page →</button>
+      <button class="btn export-btn" onclick="exportCSV('company')" id="exportCoBtn" style="display:none">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/></svg>
+        Download CSV
+      </button>
+      <button class="btn ghost" onclick="clearResults('company')" id="clearCoBtn" style="display:none">Clear</button>
+      <span id="companyStatus" style="display:none" class="status-badge"></span>
+    </div>
+    <div id="companyResults"></div>
+  </div>
+
+  <!-- ───── EMAIL ENRICHMENT ───── -->
+  <div id="tab-enrich" class="tab-panel">
+    <div class="form-section">Single lookup</div>
+    <div class="grid-4">
+      <div>
+        <label>First name</label>
+        <input id="e-first" placeholder="John">
+      </div>
+      <div>
+        <label>Last name</label>
+        <input id="e-last" placeholder="Smith">
+      </div>
+      <div>
+        <label>Company domain</label>
+        <input id="e-domain" placeholder="acme.com">
+      </div>
+      <div>
+        <label>LinkedIn URL (optional)</label>
+        <input id="e-li" placeholder="linkedin.com/in/...">
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" onclick="findEmail()" id="findEmailBtn">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M18 2H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 4l-8 5-8-5V4l8 5 8-5v2z"/></svg>
+        Find email
+      </button>
+      <button class="btn export-btn" onclick="exportCSV('enrich')" id="exportEnrichBtn" style="display:none">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/></svg>
+        Download CSV
+      </button>
+      <span id="enrichStatus" style="display:none" class="status-badge"></span>
+    </div>
+    <div id="enrichResults"></div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API_KEY = 'blitz-019c7134-211a-7fee-b139-3d6c7ba0d9be';
+const BASE = 'https://api.blitz-api.ai/v2';
+
+let allPeople = [], allCompany = [], allEnrich = [];
+let peopleCursor = null, companyCursor = null;
+let totalPeopleResults = 0, totalCompanyResults = 0;
+
+// ── INIT ──────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('#emp-pills .pill').forEach(p => {
+    p.addEventListener('click', () => p.classList.toggle('on'));
+  });
+  checkAccount();
+});
+
+// ── UTILS ─────────────────────────────────────────────────
+function sv(val) {
+  return val ? val.split(',').map(s => s.trim()).filter(Boolean) : [];
+}
+function sp(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+function setStatus(id, msg, type) {
+  const el = document.getElementById(id);
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.className = 'status-badge' + (type ? ' ' + type : '');
+}
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' ' + type : '');
+  setTimeout(() => el.className = '', 3000);
+}
+function setLoading(btnId, loading, defaultText) {
+  const btn = document.getElementById(btnId);
+  if (!btn) return;
+  btn.disabled = loading;
+  if (loading) {
+    btn.innerHTML = `<span class="spinner"></span> ${defaultText}…`;
+  } else {
+    btn.innerHTML = defaultText;
+  }
+}
+function updateMetric(id, val) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = val;
+}
+
+// ── ACCOUNT CHECK ─────────────────────────────────────────
+async function checkAccount() {
+  try {
+    const r = await fetch(BASE + '/account/key-info', {
+      headers: { 'x-api-key': API_KEY }
+    });
+    const d = await r.json();
+    if (d.valid === false || d.error) {
+      updateMetric('m-status', 'Invalid key');
+      document.getElementById('m-status').style.color = 'var(--danger)';
+      return;
+    }
+    updateMetric('m-credits', d.remaining_credits ?? '—');
+    updateMetric('m-rate', d.max_requests_per_seconds ?? '—');
+    updateMetric('m-status', '● Active');
+    document.getElementById('m-status').style.color = 'var(--accent)';
+    const plans = (d.active_plans || []).map(p => p.name).join(', ') || '—';
+    updateMetric('m-plan', plans);
+    document.getElementById('planBadge').textContent = (d.active_plans || [{ name: '—' }])[0].name || '—';
+    document.getElementById('creditsNum').textContent = d.remaining_credits ?? '—';
+    if (d.next_reset_at) {
+      const resetDate = new Date(d.next_reset_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      document.getElementById('m-reset').textContent = 'Resets ' + resetDate;
+    }
+  } catch (e) {
+    updateMetric('m-status', 'Error');
+    document.getElementById('m-status').style.color = 'var(--danger)';
+  }
+}
+
+// ── HTTP HELPERS ──────────────────────────────────────────
+async function blitzPost(path, body) {
+  const r = await fetch(BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+    body: JSON.stringify(body)
+  });
+  return r.json();
+}
+
+// ── TABS ──────────────────────────────────────────────────
+function switchTab(name, el) {
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+}
+
+// ── FIND PEOPLE ───────────────────────────────────────────
+async function searchPeople(paginate) {
+  const defaultTxt = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg> Search`;
+  const loadingTxt = 'Searching';
+  document.getElementById('searchPeopleBtn').disabled = true;
+  document.getElementById('searchPeopleBtn').innerHTML = `<span class="spinner"></span> Searching…`;
+  setStatus('peopleStatus', 'Querying BlitzAPI…');
+
+  if (!paginate) { peopleCursor = null; allPeople = []; }
+
+  const empSel = [...document.querySelectorAll('#emp-pills .pill.on')].map(p => p.dataset.v);
+
+  const body = {
+    company: {
+      industry: { include: sv(sp('p-ind-inc')), exclude: sv(sp('p-ind-exc')) },
+      name: { include: sv(sp('p-co-inc')), exclude: [] },
+      hq: { country_code: sv(sp('p-hq-cc')), city: { include: [], exclude: [] }, continent: [], sales_region: [] },
+      ...(empSel.length ? { employee_range: empSel } : {}),
+      keywords: { include: [], exclude: [] },
+      type: { include: [], exclude: [] },
+      founded_year: { min: 0, max: 0 },
+      employee_count: { min: 1, max: 0 },
+      min_linkedin_followers: 1
+    },
+    people: {
+      job_title: {
+        include: sv(sp('p-jt-inc')),
+        exclude: sv(sp('p-jt-exc')),
+        include_linkedin_headline: document.getElementById('p-headline').checked
+      },
+      job_function: [], job_level: [],
+      location: { country_code: sv(sp('p-loc-cc')), city: [], continent: [], sales_region: [] },
+      ...(sp('p-min-conn') ? { min_connections: parseInt(sp('p-min-conn')) } : {})
+    },
+    max_results: Math.min(50, Math.max(1, parseInt(sp('p-max')) || 25)),
+    cursor: paginate ? peopleCursor : null
+  };
+
+  try {
+    const d = await blitzPost('/search/people', body);
+    if (d.error || (d.message && !d.results)) {
+      setStatus('peopleStatus', d.message || d.error || 'Error returned from API', 'err');
+      toast('Search failed', 'red');
+    } else {
+      peopleCursor = d.cursor || null;
+      allPeople = [...allPeople, ...(d.results || [])];
+      totalPeopleResults = d.total_results || 0;
+      renderPeopleTable();
+      setStatus('peopleStatus', `${allPeople.length.toLocaleString()} loaded · ${totalPeopleResults.toLocaleString()} total`, 'ok');
+      document.getElementById('nextPeopleBtn').style.display = peopleCursor ? 'inline-flex' : 'none';
+      document.getElementById('exportPeopleBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
+      document.getElementById('clearPeopleBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
+      updateMetric('m-loaded', allPeople.length + allCompany.length);
+      toast(`Loaded ${(d.results||[]).length} results`, 'green');
+    }
+  } catch (e) {
+    setStatus('peopleStatus', 'Network error: ' + e.message, 'err');
+    toast('Network error', 'red');
+  }
+  document.getElementById('searchPeopleBtn').disabled = false;
+  document.getElementById('searchPeopleBtn').innerHTML = defaultTxt;
+}
+
+function renderPeopleTable() {
+  if (!allPeople.length) {
+    document.getElementById('peopleResults').innerHTML = `<div class="results-wrap"><div class="empty-state"><div class="empty-icon">⌕</div>No results found for these filters.</div></div>`;
+    return;
+  }
+  const rows = allPeople.map((p, i) => {
+    const exp = (p.experiences || [])[0] || {};
+    const loc = p.location ? [p.location.city, p.location.country_code].filter(Boolean).join(', ') : '—';
+    return `<tr>
+      <td style="min-width:160px">
+        <div class="td-name">${escHtml(p.full_name || '—')}</div>
+        <div class="td-sub">${escHtml(p.headline || '')}</div>
+      </td>
+      <td style="min-width:140px">${escHtml(exp.job_title || '—')}</td>
+      <td style="min-width:130px">${escHtml(exp.company_name || '—')}</td>
+      <td>${escHtml(loc)}</td>
+      <td style="font-family:var(--mono);font-size:12px">${p.connections_count || '—'}</td>
+      <td>${p.linkedin_url ? `<a href="${escHtml(p.linkedin_url)}" target="_blank" rel="noopener" class="link-pill">LinkedIn ↗</a>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('peopleResults').innerHTML = `
+    <div class="results-wrap">
+      <div class="results-header">
+        <span><strong>${allPeople.length.toLocaleString()}</strong> contacts loaded · <strong>${totalPeopleResults.toLocaleString()}</strong> total matches</span>
+        <span style="font-size:11px">${peopleCursor ? 'More pages available' : 'All pages loaded'}</span>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Title</th><th>Company</th><th>Location</th><th>Connections</th><th>LinkedIn</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ── COMPANY SEARCH ────────────────────────────────────────
+async function searchCompany(paginate) {
+  const defaultTxt = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg> Search`;
+  document.getElementById('searchCoBtn').disabled = true;
+  document.getElementById('searchCoBtn').innerHTML = `<span class="spinner"></span> Searching…`;
+  setStatus('companyStatus', 'Querying BlitzAPI…');
+
+  if (!paginate) { companyCursor = null; allCompany = []; }
+
+  const empMin = parseInt(sp('c-emp-min')) || 0;
+  const empMax = parseInt(sp('c-emp-max')) || 0;
+  const yearMin = parseInt(sp('c-year-min')) || 0;
+
+  const body = {
+    industry: { include: sv(sp('c-ind-inc')), exclude: sv(sp('c-ind-exc')) },
+    hq: { country_code: sv(sp('c-hq-cc')), city: { include: [], exclude: [] }, continent: [], sales_region: [] },
+    keywords: { include: sv(sp('c-kw-inc')), exclude: [] },
+    type: { include: [], exclude: [] },
+    name: { include: [], exclude: [] },
+    ...(empMin || empMax ? { employee_count: { min: empMin, max: empMax } } : {}),
+    ...(yearMin ? { founded_year: { min: yearMin, max: 0 } } : { founded_year: { min: 0, max: 0 } }),
+    min_linkedin_followers: 1,
+    max_results: Math.min(50, Math.max(1, parseInt(sp('c-max')) || 25)),
+    cursor: paginate ? companyCursor : null
+  };
+
+  try {
+    const d = await blitzPost('/search/company', body);
+    if (d.error || (d.message && !d.results)) {
+      setStatus('companyStatus', d.message || d.error || 'Error returned', 'err');
+      toast('Search failed', 'red');
+    } else {
+      companyCursor = d.cursor || null;
+      allCompany = [...allCompany, ...(d.results || [])];
+      totalCompanyResults = d.total_results || 0;
+      renderCompanyTable();
+      setStatus('companyStatus', `${allCompany.length.toLocaleString()} loaded · ${totalCompanyResults.toLocaleString()} total`, 'ok');
+      document.getElementById('nextCoBtn').style.display = companyCursor ? 'inline-flex' : 'none';
+      document.getElementById('exportCoBtn').style.display = allCompany.length ? 'inline-flex' : 'none';
+      document.getElementById('clearCoBtn').style.display = allCompany.length ? 'inline-flex' : 'none';
+      updateMetric('m-loaded', allPeople.length + allCompany.length);
+      toast(`Loaded ${(d.results||[]).length} companies`, 'green');
+    }
+  } catch (e) {
+    setStatus('companyStatus', 'Network error: ' + e.message, 'err');
+    toast('Network error', 'red');
+  }
+  document.getElementById('searchCoBtn').disabled = false;
+  document.getElementById('searchCoBtn').innerHTML = defaultTxt;
+}
+
+function renderCompanyTable() {
+  if (!allCompany.length) {
+    document.getElementById('companyResults').innerHTML = `<div class="results-wrap"><div class="empty-state"><div class="empty-icon">⌕</div>No results found for these filters.</div></div>`;
+    return;
+  }
+  const rows = allCompany.map(c => {
+    const hq = c.hq ? [c.hq.city, c.hq.country_code].filter(Boolean).join(', ') : '—';
+    return `<tr>
+      <td style="min-width:160px"><div class="td-name">${escHtml(c.name || '—')}</div></td>
+      <td>${escHtml(c.industry || '—')}</td>
+      <td style="font-family:var(--mono);font-size:12px">${c.employee_count ? c.employee_count.toLocaleString() : (c.employee_range || '—')}</td>
+      <td>${escHtml(hq)}</td>
+      <td style="font-size:12px">${c.website ? `<a href="${escHtml('https://'+c.website.replace(/^https?:\/\//,''))}" target="_blank" rel="noopener" class="link-pill">${escHtml(c.website)} ↗</a>` : '—'}</td>
+      <td>${c.linkedin_url ? `<a href="${escHtml(c.linkedin_url)}" target="_blank" rel="noopener" class="link-pill">LinkedIn ↗</a>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('companyResults').innerHTML = `
+    <div class="results-wrap">
+      <div class="results-header">
+        <span><strong>${allCompany.length.toLocaleString()}</strong> companies loaded · <strong>${totalCompanyResults.toLocaleString()}</strong> total matches</span>
+        <span style="font-size:11px">${companyCursor ? 'More pages available' : 'All pages loaded'}</span>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr><th>Company</th><th>Industry</th><th>Employees</th><th>HQ</th><th>Website</th><th>LinkedIn</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+// ── EMAIL ENRICHMENT ──────────────────────────────────────
+async function findEmail() {
+  const defaultTxt = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M18 2H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 4l-8 5-8-5V4l8 5 8-5v2z"/></svg> Find email`;
+  document.getElementById('findEmailBtn').disabled = true;
+  document.getElementById('findEmailBtn').innerHTML = `<span class="spinner"></span> Looking up…`;
+  setStatus('enrichStatus', 'Searching…');
+
+  const body = {
+    first_name: sp('e-first'),
+    last_name: sp('e-last'),
+    domain: sp('e-domain'),
+    ...(sp('e-li') ? { linkedin_url: sp('e-li') } : {})
+  };
+
+  try {
+    const d = await blitzPost('/enrichment/email', body);
+    if (d.error || (d.message && !d.email)) {
+      setStatus('enrichStatus', d.message || d.error || 'Not found', 'err');
+      document.getElementById('enrichResults').innerHTML = `<div class="results-wrap"><div class="empty-state"><div class="empty-icon">✉</div>No email found for this contact.</div></div>`;
+      toast('Email not found', 'red');
+    } else {
+      allEnrich = [d];
+      document.getElementById('enrichResults').innerHTML = `
+        <div class="results-wrap">
+          <div class="results-header"><span><strong>1</strong> email found</span></div>
+          <div class="tbl-scroll"><table>
+            <thead><tr><th>Email</th><th>Status</th><th>First</th><th>Last</th><th>Domain</th><th>Type</th></tr></thead>
+            <tbody><tr>
+              <td style="font-family:var(--mono);font-weight:500;color:var(--accent)">${escHtml(d.email || '—')}</td>
+              <td><span class="status-pill">${escHtml(d.status || d.verification_status || '—')}</span></td>
+              <td>${escHtml(d.first_name || sp('e-first') || '—')}</td>
+              <td>${escHtml(d.last_name || sp('e-last') || '—')}</td>
+              <td style="font-family:var(--mono);font-size:12px">${escHtml(d.domain || sp('e-domain') || '—')}</td>
+              <td>${escHtml(d.type || '—')}</td>
+            </tr></tbody>
+          </table></div>
+        </div>`;
+      setStatus('enrichStatus', 'Email found', 'ok');
+      document.getElementById('exportEnrichBtn').style.display = 'inline-flex';
+      toast('Email found: ' + d.email, 'green');
+    }
+  } catch (e) {
+    setStatus('enrichStatus', 'Network error: ' + e.message, 'err');
+    toast('Network error', 'red');
+  }
+  document.getElementById('findEmailBtn').disabled = false;
+  document.getElementById('findEmailBtn').innerHTML = defaultTxt;
+}
+
+// ── CSV EXPORT ────────────────────────────────────────────
+function exportCSV(type) {
+  let rows = [];
+  let filename = '';
+
+  if (type === 'people') {
+    rows = allPeople.map(p => {
+      const exp = (p.experiences || [])[0] || {};
+      return {
+        full_name: p.full_name || '',
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
+        headline: p.headline || '',
+        job_title: exp.job_title || '',
+        company: exp.company_name || '',
+        company_linkedin: exp.company_linkedin_url || '',
+        job_start_date: exp.job_start_date || '',
+        city: (p.location || {}).city || '',
+        state: (p.location || {}).state_code || '',
+        country: (p.location || {}).country_code || '',
+        linkedin_url: p.linkedin_url || '',
+        connections: p.connections_count || '',
+        about_me: (p.about_me || '').replace(/\n/g, ' ')
+      };
+    });
+    filename = `blitz_people_${today()}.csv`;
+  } else if (type === 'company') {
+    rows = allCompany.map(c => ({
+      name: c.name || '',
+      industry: c.industry || '',
+      employee_count: c.employee_count || c.employee_range || '',
+      city: (c.hq || {}).city || '',
+      country: (c.hq || {}).country_code || '',
+      website: c.website || '',
+      linkedin_url: c.linkedin_url || '',
+      description: (c.description || '').replace(/\n/g, ' ')
+    }));
+    filename = `blitz_companies_${today()}.csv`;
+  } else if (type === 'enrich') {
+    rows = allEnrich.map(d => ({
+      email: d.email || '',
+      status: d.status || d.verification_status || '',
+      first_name: d.first_name || sp('e-first') || '',
+      last_name: d.last_name || sp('e-last') || '',
+      domain: d.domain || sp('e-domain') || '',
+      type: d.type || ''
+    }));
+    filename = `blitz_emails_${today()}.csv`;
+  }
+
+  if (!rows.length) { toast('Nothing to export', ''); return; }
+
+  const headers = Object.keys(rows[0]);
+  const csv = [
+    headers.join(','),
+    ...rows.map(r => headers.map(h => `"${String(r[h] || '').replace(/"/g, '""')}"`).join(','))
+  ].join('\n');
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  toast(`Exported ${rows.length} rows`, 'green');
+}
+
+// ── CLEAR ─────────────────────────────────────────────────
+function clearResults(type) {
+  if (type === 'people') {
+    allPeople = []; peopleCursor = null;
+    document.getElementById('peopleResults').innerHTML = '';
+    document.getElementById('exportPeopleBtn').style.display = 'none';
+    document.getElementById('nextPeopleBtn').style.display = 'none';
+    document.getElementById('clearPeopleBtn').style.display = 'none';
+    document.getElementById('peopleStatus').style.display = 'none';
+  } else if (type === 'company') {
+    allCompany = []; companyCursor = null;
+    document.getElementById('companyResults').innerHTML = '';
+    document.getElementById('exportCoBtn').style.display = 'none';
+    document.getElementById('nextCoBtn').style.display = 'none';
+    document.getElementById('clearCoBtn').style.display = 'none';
+    document.getElementById('companyStatus').style.display = 'none';
+  }
+  updateMetric('m-loaded', allPeople.length + allCompany.length);
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+function escHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+</script>
+</body>
+</html>
