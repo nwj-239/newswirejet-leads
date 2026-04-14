@@ -556,6 +556,10 @@
         Search
       </button>
       <button class="btn ghost" onclick="searchPeople(true)" id="nextPeopleBtn" style="display:none">Load next page →</button>
+      <button class="btn" onclick="enrichAllEmails()" id="enrichAllBtn" style="display:none;border-color:#2a3a4a;background:rgba(92,159,255,0.07);color:var(--info)">
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M18 2H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 4l-8 5-8-5V4l8 5 8-5v2z"/></svg>
+        Enrich emails
+      </button>
       <button class="btn export-btn" onclick="exportCSV('people')" id="exportPeopleBtn" style="display:none">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/></svg>
         Download CSV
@@ -810,6 +814,7 @@ async function searchPeople(paginate) {
       renderPeopleTable();
       setStatus('peopleStatus', `${allPeople.length.toLocaleString()} loaded · ${totalPeopleResults.toLocaleString()} total`, 'ok');
       document.getElementById('nextPeopleBtn').style.display = peopleCursor ? 'inline-flex' : 'none';
+      document.getElementById('enrichAllBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
       document.getElementById('exportPeopleBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
       document.getElementById('clearPeopleBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
       updateMetric('m-loaded', allPeople.length + allCompany.length);
@@ -828,9 +833,18 @@ function renderPeopleTable() {
     document.getElementById('peopleResults').innerHTML = `<div class="results-wrap"><div class="empty-state"><div class="empty-icon">⌕</div>No results found for these filters.</div></div>`;
     return;
   }
+  const enrichedCount = allPeople.filter(p => p._email).length;
   const rows = allPeople.map((p, i) => {
     const exp = (p.experiences || [])[0] || {};
     const loc = p.location ? [p.location.city, p.location.country_code].filter(Boolean).join(', ') : '—';
+    let emailCell = '—';
+    if (p._emailPending) {
+      emailCell = `<span style="font-size:11px;color:var(--muted)"><span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span></span>`;
+    } else if (p._email) {
+      emailCell = `<span style="font-family:var(--mono);font-size:11px;color:var(--accent)">${escHtml(p._email)}</span>`;
+    } else if (p._emailChecked) {
+      emailCell = `<span style="font-size:11px;color:var(--muted)">not found</span>`;
+    }
     return `<tr>
       <td style="min-width:160px">
         <div class="td-name">${escHtml(p.full_name || '—')}</div>
@@ -839,26 +853,82 @@ function renderPeopleTable() {
       <td style="min-width:140px">${escHtml(exp.job_title || '—')}</td>
       <td style="min-width:130px">${escHtml(exp.company_name || '—')}</td>
       <td>${escHtml(loc)}</td>
+      <td style="min-width:180px">${emailCell}</td>
       <td style="font-family:var(--mono);font-size:12px">${p.connections_count || '—'}</td>
       <td>${p.linkedin_url ? `<a href="${escHtml(p.linkedin_url)}" target="_blank" rel="noopener" class="link-pill">LinkedIn ↗</a>` : '—'}</td>
     </tr>`;
   }).join('');
 
+  const emailHeader = enrichedCount > 0
+    ? `<span style="color:var(--accent);font-family:var(--mono)">${enrichedCount}</span> emails found`
+    : 'Click "Enrich emails" to find work emails';
+
   document.getElementById('peopleResults').innerHTML = `
     <div class="results-wrap">
       <div class="results-header">
         <span><strong>${allPeople.length.toLocaleString()}</strong> contacts loaded · <strong>${totalPeopleResults.toLocaleString()}</strong> total matches</span>
-        <span style="font-size:11px">${peopleCursor ? 'More pages available' : 'All pages loaded'}</span>
+        <span style="font-size:11px">${emailHeader}</span>
       </div>
       <div class="tbl-scroll">
         <table>
           <thead><tr>
-            <th>Name</th><th>Title</th><th>Company</th><th>Location</th><th>Connections</th><th>LinkedIn</th>
+            <th>Name</th><th>Title</th><th>Company</th><th>Location</th><th>Email</th><th>Connections</th><th>LinkedIn</th>
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </div>
     </div>`;
+}
+
+// ── BULK EMAIL ENRICHMENT ─────────────────────────────────
+async function enrichAllEmails() {
+  const btn = document.getElementById('enrichAllBtn');
+  const total = allPeople.length;
+  const unenriched = allPeople.filter(p => !p._emailChecked);
+  if (!unenriched.length) { toast('All contacts already enriched', ''); return; }
+
+  btn.disabled = true;
+  let done = 0;
+
+  for (let i = 0; i < allPeople.length; i++) {
+    const p = allPeople[i];
+    if (p._emailChecked) { done++; continue; }
+
+    // Mark as pending and re-render to show spinner
+    allPeople[i]._emailPending = true;
+    renderPeopleTable();
+    btn.innerHTML = `<span class="spinner"></span> ${done}/${total} enriched…`;
+    setStatus('peopleStatus', `Enriching emails… ${done} / ${total}`, '');
+
+    try {
+      const body = {
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
+        ...(p.linkedin_url ? { linkedin_url: p.linkedin_url } : {}),
+      };
+      const d = await blitzPost('/enrichment/email', body);
+      allPeople[i]._emailPending = false;
+      allPeople[i]._emailChecked = true;
+      if (d.email) {
+        allPeople[i]._email = d.email;
+        allPeople[i]._emailStatus = d.status || d.verification_status || '';
+      }
+    } catch (e) {
+      allPeople[i]._emailPending = false;
+      allPeople[i]._emailChecked = true;
+    }
+
+    done++;
+    // Throttle: stay under 5 req/sec
+    await new Promise(r => setTimeout(r, 220));
+  }
+
+  renderPeopleTable();
+  const found = allPeople.filter(p => p._email).length;
+  setStatus('peopleStatus', `Enrichment complete · ${found} of ${total} emails found`, 'ok');
+  btn.disabled = false;
+  btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M18 2H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 4l-8 5-8-5V4l8 5 8-5v2z"/></svg> Re-enrich`;
+  toast(`${found} emails found out of ${total}`, found > 0 ? 'green' : '');
 }
 
 // ── COMPANY SEARCH ────────────────────────────────────────
@@ -1005,6 +1075,8 @@ function exportCSV(type) {
         full_name: p.full_name || '',
         first_name: p.first_name || '',
         last_name: p.last_name || '',
+        email: p._email || '',
+        email_status: p._emailStatus || '',
         headline: p.headline || '',
         job_title: exp.job_title || '',
         company: exp.company_name || '',
@@ -1065,6 +1137,7 @@ function clearResults(type) {
     allPeople = []; peopleCursor = null;
     document.getElementById('peopleResults').innerHTML = '';
     document.getElementById('exportPeopleBtn').style.display = 'none';
+    document.getElementById('enrichAllBtn').style.display = 'none';
     document.getElementById('nextPeopleBtn').style.display = 'none';
     document.getElementById('clearPeopleBtn').style.display = 'none';
     document.getElementById('peopleStatus').style.display = 'none';
