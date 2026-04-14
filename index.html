@@ -665,8 +665,7 @@
 <div id="toast"></div>
 
 <script>
-const API_KEY = 'blitz-019d8d51-f280-76f5-9a19-7a5538f91b0e';
-const BASE = 'https://api.blitz-api.ai/v2';
+const PROXY = 'https://blitz-proxy.crimson-wind-f45b.workers.dev';
 
 let allPeople = [], allCompany = [], allEnrich = [];
 let peopleCursor = null, companyCursor = null;
@@ -718,9 +717,7 @@ function updateMetric(id, val) {
 // ── ACCOUNT CHECK ─────────────────────────────────────────
 async function checkAccount() {
   try {
-    const r = await fetch(BASE + '/account/key-info', {
-      headers: { 'x-api-key': API_KEY }
-    });
+    const r = await fetch(PROXY + '?path=/account/key-info');
     const d = await r.json();
     if (d.valid === false || d.error) {
       updateMetric('m-status', 'Invalid key');
@@ -747,9 +744,9 @@ async function checkAccount() {
 
 // ── HTTP HELPERS ──────────────────────────────────────────
 async function blitzPost(path, body) {
-  const r = await fetch(BASE + path, {
+  const r = await fetch(PROXY + '?path=' + encodeURIComponent(path), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-api-key': API_KEY },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   return r.json();
