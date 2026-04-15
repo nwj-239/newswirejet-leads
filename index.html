@@ -842,8 +842,12 @@ function renderPeopleTable() {
       emailCell = `<span style="font-size:11px;color:var(--muted)"><span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span></span>`;
     } else if (p._email) {
       emailCell = `<span style="font-family:var(--mono);font-size:11px;color:var(--accent)">${escHtml(p._email)}</span>`;
+    } else if (p._emailError === 'plan') {
+      emailCell = `<span style="font-size:11px;color:var(--warn)">plan upgrade needed</span>`;
+    } else if (p._emailError === 'no linkedin url') {
+      emailCell = `<span style="font-size:11px;color:var(--muted)">no linkedin url</span>`;
     } else if (p._emailChecked) {
-      emailCell = `<span style="font-size:11px;color:var(--muted)">not found</span>`;
+      emailCell = `<span style="font-size:11px;color:var(--muted)">${escHtml(p._emailError || 'not found')}</span>`;
     }
     return `<tr>
       <td style="min-width:160px">
@@ -887,48 +891,86 @@ async function enrichAllEmails() {
   const unenriched = allPeople.filter(p => !p._emailChecked);
   if (!unenriched.length) { toast('All contacts already enriched', ''); return; }
 
+  // Check that leads have LinkedIn URLs — required by BlitzAPI
+  const hasLinkedIn = allPeople.filter(p => p.linkedin_url).length;
+  if (hasLinkedIn === 0) {
+    setStatus('peopleStatus', 'No LinkedIn URLs found in results — BlitzAPI requires a LinkedIn URL to find emails', 'err');
+    toast('No LinkedIn URLs in results', 'red');
+    return;
+  }
+
   btn.disabled = true;
   let done = 0;
+  let planError = false;
 
   for (let i = 0; i < allPeople.length; i++) {
     const p = allPeople[i];
     if (p._emailChecked) { done++; continue; }
 
-    // Mark as pending and re-render to show spinner
+    // Skip if no LinkedIn URL — API requires it
+    if (!p.linkedin_url) {
+      allPeople[i]._emailChecked = true;
+      allPeople[i]._emailError = 'no linkedin url';
+      done++;
+      continue;
+    }
+
     allPeople[i]._emailPending = true;
     renderPeopleTable();
     btn.innerHTML = `<span class="spinner"></span> ${done}/${total} enriched…`;
     setStatus('peopleStatus', `Enriching emails… ${done} / ${total}`, '');
 
     try {
-      const body = {
-        first_name: p.first_name || '',
-        last_name: p.last_name || '',
-        ...(p.linkedin_url ? { linkedin_url: p.linkedin_url } : {}),
-      };
+      // BlitzAPI requires ONLY person_linkedin_url — no other fields
+      const body = { person_linkedin_url: p.linkedin_url };
       const d = await blitzPost('/enrichment/email', body);
+
       allPeople[i]._emailPending = false;
       allPeople[i]._emailChecked = true;
-      if (d.email) {
-        allPeople[i]._email = d.email;
-        allPeople[i]._emailStatus = d.status || d.verification_status || '';
+
+      // 402 = plan doesn't include email enrichment
+      if (d.statusCode === 402 || d.status === 402 || (d.message && d.message.toLowerCase().includes('plan'))) {
+        planError = true;
+        allPeople[i]._emailError = 'plan';
+        // Stop immediately — no point continuing if plan doesn't support it
+        break;
       }
+
+      if (d.found === true && d.email) {
+        allPeople[i]._email = d.email;
+        allPeople[i]._emailStatus = 'verified';
+      } else if (d.found === false) {
+        allPeople[i]._emailError = 'not in database';
+      } else if (d.error || d.message) {
+        allPeople[i]._emailError = d.message || d.error || 'api error';
+      }
+
     } catch (e) {
       allPeople[i]._emailPending = false;
       allPeople[i]._emailChecked = true;
+      allPeople[i]._emailError = e.message;
     }
 
     done++;
-    // Throttle: stay under 5 req/sec
     await new Promise(r => setTimeout(r, 220));
   }
 
+  // Reset any still-pending
+  allPeople.forEach((p, i) => { if (p._emailPending) allPeople[i]._emailPending = false; });
+
   renderPeopleTable();
   const found = allPeople.filter(p => p._email).length;
-  setStatus('peopleStatus', `Enrichment complete · ${found} of ${total} emails found`, 'ok');
+
+  if (planError) {
+    setStatus('peopleStatus', '⚠️ Your BlitzAPI plan does not include email enrichment. You need the Unlimited Email plan ($499/mo) at app.blitz-api.ai', 'err');
+    toast('Plan upgrade required for emails', 'red');
+  } else {
+    setStatus('peopleStatus', `Enrichment complete · ${found} of ${total} emails found`, found > 0 ? 'ok' : '');
+    toast(found > 0 ? `${found} emails found` : 'No emails found — leads may not be in BlitzAPI database', found > 0 ? 'green' : '');
+  }
+
   btn.disabled = false;
   btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M18 2H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 4l-8 5-8-5V4l8 5 8-5v2z"/></svg> Re-enrich`;
-  toast(`${found} emails found out of ${total}`, found > 0 ? 'green' : '');
 }
 
 // ── COMPANY SEARCH ────────────────────────────────────────
