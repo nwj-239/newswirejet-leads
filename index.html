@@ -1058,6 +1058,65 @@ async function searchCompany(paginate) {
   document.getElementById('searchCoBtn').innerHTML = defaultTxt;
 }
 
+function renderPeopleTable() {
+  if (!allPeople.length) {
+    document.getElementById('peopleResults').innerHTML = `<div class="results-wrap"><div class="empty-state"><div class="empty-icon">⌕</div>No results yet.</div></div>`;
+    return;
+  }
+  const emailOnly = document.getElementById('emailOnlyFilter') && document.getElementById('emailOnlyFilter').checked;
+  const displayPeople = emailOnly ? allPeople.filter(p => p._email) : allPeople;
+  const enrichedCount = allPeople.filter(p => p._email).length;
+
+  const rows = displayPeople.map(p => {
+    const exp = (p.experiences || [])[0] || {};
+    const loc = p.location ? [p.location.city, p.location.country_code].filter(Boolean).join(', ') : '—';
+    let emailCell = '—';
+    if (p._emailPending) {
+      emailCell = `<span style="font-size:11px;color:var(--muted)"><span class="spinner" style="width:10px;height:10px;border-width:1.5px"></span></span>`;
+    } else if (p._email) {
+      emailCell = `<span style="font-family:var(--mono);font-size:11px;color:var(--accent)">${escHtml(p._email)}</span>`;
+    } else if (p._emailError === 'plan') {
+      emailCell = `<span style="font-size:11px;color:var(--warn)">plan upgrade needed</span>`;
+    } else if (p._emailError === 'no linkedin url') {
+      emailCell = `<span style="font-size:11px;color:var(--muted)">no linkedin url</span>`;
+    } else if (p._emailChecked) {
+      emailCell = `<span style="font-size:11px;color:var(--muted)">${escHtml(p._emailError || 'not found')}</span>`;
+    }
+    return `<tr>
+      <td style="min-width:160px">
+        <div class="td-name">${escHtml(p.full_name || '—')}</div>
+        <div class="td-sub">${escHtml(p.headline || '')}</div>
+      </td>
+      <td style="min-width:140px">${escHtml(exp.job_title || '—')}</td>
+      <td style="min-width:130px">${escHtml(exp.company_name || '—')}</td>
+      <td>${escHtml(loc)}</td>
+      <td style="min-width:180px">${emailCell}</td>
+      <td style="font-family:var(--mono);font-size:12px">${p.connections_count || '—'}</td>
+      <td>${p.linkedin_url ? `<a href="${escHtml(p.linkedin_url)}" target="_blank" rel="noopener" class="link-pill">LinkedIn ↗</a>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const countLabel = emailOnly
+    ? `<strong>${displayPeople.length.toLocaleString()}</strong> verified leads (filtered from ${allPeople.length.toLocaleString()})`
+    : `<strong>${allPeople.length.toLocaleString()}</strong> contacts · <strong>${totalPeopleResults.toLocaleString()}</strong> total matches`;
+
+  document.getElementById('peopleResults').innerHTML = `
+    <div class="results-wrap">
+      <div class="results-header">
+        <span>${countLabel}</span>
+        <span style="font-size:11px;color:var(--accent)">${enrichedCount > 0 ? enrichedCount.toLocaleString() + ' emails found' : 'enriching…'}</span>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead><tr>
+            <th>Name</th><th>Title</th><th>Company</th><th>Location</th><th>Email</th><th>Connections</th><th>LinkedIn</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 function renderCompanyTable() {
   if (!allCompany.length) {
     document.getElementById('companyResults').innerHTML = `<div class="results-wrap"><div class="empty-state"><div class="empty-icon">⌕</div>No results found for these filters.</div></div>`;
