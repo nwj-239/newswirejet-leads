@@ -449,6 +449,20 @@
     <p>Search 380M+ verified B2B contacts · export CSV instantly</p>
   </div>
 
+  <!-- DEBUG PANEL -->
+  <div id="debugPanel" style="margin-bottom:1rem;background:#0a1628;border:1px solid rgba(92,159,255,0.3);border-radius:var(--radius);padding:1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem">
+      <span style="font-size:12px;font-weight:600;color:var(--info);text-transform:uppercase;letter-spacing:.06em">API Debug</span>
+      <button class="btn ghost" onclick="document.getElementById('debugPanel').style.display='none'" style="font-size:11px;padding:3px 8px">Hide</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:.75rem">
+      <button class="btn" onclick="debugTest('account')" style="font-size:12px;padding:6px 12px;color:var(--info);border-color:rgba(92,159,255,0.3)">Test: Account info</button>
+      <button class="btn" onclick="debugTest('search')" style="font-size:12px;padding:6px 12px;color:var(--info);border-color:rgba(92,159,255,0.3)">Test: Search (1 result)</button>
+      <button class="btn" onclick="debugTest('worker')" style="font-size:12px;padding:6px 12px;color:var(--info);border-color:rgba(92,159,255,0.3)">Test: Worker reachable</button>
+    </div>
+    <pre id="debugOut" style="font-family:var(--mono);font-size:11px;color:#8ab4f8;background:#060d1a;padding:.75rem;border-radius:6px;overflow-x:auto;white-space:pre-wrap;min-height:48px;margin:0">Click a test button above to diagnose the issue…</pre>
+  </div>
+
   <!-- METRICS -->
   <div class="metrics">
     <div class="metric-card">
@@ -679,6 +693,42 @@
 <script>
 const PROXY = 'https://blitz-proxy.crimson-wind-f45b.workers.dev';
 
+// ── DEBUG ─────────────────────────────────────────────────
+async function debugTest(type) {
+  const out = document.getElementById('debugOut');
+  out.textContent = 'Running test: ' + type + '…';
+  try {
+    if (type === 'worker') {
+      const r = await fetch(PROXY + '?path=/account/key-info');
+      out.textContent = 'Worker HTTP status: ' + r.status + '\nURL called: ' + PROXY + '?path=/account/key-info';
+      return;
+    }
+    if (type === 'account') {
+      const r = await fetch(PROXY + '?path=/account/key-info');
+      const text = await r.text();
+      out.textContent = 'Status: ' + r.status + '\nResponse:\n' + text;
+      return;
+    }
+    if (type === 'search') {
+      const body = {
+        company: { industry:{include:[],exclude:[]}, name:{include:[],exclude:[]}, hq:{country_code:['US'],city:{include:[],exclude:[]},continent:[],sales_region:[]}, keywords:{include:[],exclude:[]}, type:{include:[],exclude:[]}, founded_year:{min:0,max:0}, employee_count:{min:1,max:0}, min_linkedin_followers:1 },
+        people: { job_title:{include:['CEO'],exclude:[],include_linkedin_headline:false}, job_function:[], job_level:[], location:{country_code:['US'],city:[],continent:[],sales_region:[]} },
+        max_results: 1,
+        cursor: null
+      };
+      const r = await fetch(PROXY + '?path=' + encodeURIComponent('/search/people'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const text = await r.text();
+      out.textContent = 'Status: ' + r.status + '\nBody sent to worker:\n' + JSON.stringify(body, null, 2).slice(0, 300) + '\n\nResponse:\n' + text.slice(0, 800);
+    }
+  } catch(e) {
+    out.textContent = 'ERROR: ' + e.message + '\n\nThis usually means the Cloudflare Worker URL is wrong or the Worker is not deployed.';
+  }
+}
+
 let allPeople = [], allCompany = [], allEnrich = [];
 let peopleCursor = null, companyCursor = null;
 let totalPeopleResults = 0, totalCompanyResults = 0;
@@ -800,7 +850,6 @@ function buildPeopleBody(cursor) {
       keywords: { include: [], exclude: [] },
       type: { include: [], exclude: [] },
       founded_year: { min: 0, max: 0 },
-      employee_count: { min: 1, max: 0 },
       min_linkedin_followers: 1
     },
     people: {
@@ -895,10 +944,10 @@ async function searchPeople() {
       // Log raw response to console for debugging
       console.log('[BlitzAPI /search/people response]', JSON.stringify(d).slice(0, 500));
 
-      if (d.error || d.message || !d.results) {
+      if (d.error || (!d.results && !Array.isArray(d.results))) {
         lastError = d.message || d.error || ('Unexpected response: ' + JSON.stringify(d).slice(0, 200));
         setStatus('peopleStatus', lastError, 'err');
-        toast('Search error — check console for details', 'red');
+        toast('Search error — check debug panel', 'red');
         break;
       }
       const batch = d.results || [];
