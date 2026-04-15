@@ -880,7 +880,11 @@ async function enrichBatch(batch) {
     }
     allPeople[idx]._emailPending = true;
     try {
-      const d = await blitzPost('/enrichment/email', { person_linkedin_url: allPeople[idx].linkedin_url });
+      // 8 second timeout per call — skip and move on if it hangs
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000));
+      const call = blitzPost('/enrichment/email', { person_linkedin_url: allPeople[idx].linkedin_url });
+      const d = await Promise.race([call, timeout]);
+
       allPeople[idx]._emailPending = false;
       allPeople[idx]._emailChecked = true;
       if (d.statusCode === 402 || d.status === 402 || (d.message && d.message.toLowerCase().includes('plan'))) {
@@ -898,7 +902,7 @@ async function enrichBatch(batch) {
     } catch (e) {
       allPeople[idx]._emailPending = false;
       allPeople[idx]._emailChecked = true;
-      allPeople[idx]._emailError = e.message;
+      allPeople[idx]._emailError = e.message === 'timeout' ? 'timed out' : e.message;
     }
     await new Promise(r => setTimeout(r, 220));
   }
