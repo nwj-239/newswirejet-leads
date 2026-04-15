@@ -538,33 +538,41 @@
         <input id="p-min-conn" type="number" placeholder="e.g. 500">
       </div>
       <div>
-        <label>Results per page (max 50)</label>
-        <input id="p-max" type="number" value="25" min="1" max="50">
+        <label>Target leads to load</label>
+        <input id="p-target" type="number" value="500" min="50" max="15000" placeholder="e.g. 1000">
       </div>
-      <div style="display:flex;align-items:flex-end">
-        <label style="display:none">action</label>
-        <label for="p-headline">
-          <input type="checkbox" id="p-headline" style="width:auto;margin-right:5px">
+      <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap">
+        <label for="p-headline" style="display:flex;align-items:center;gap:5px;text-transform:none;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="p-headline" style="width:auto">
           Search headline too
         </label>
       </div>
     </div>
 
     <div class="actions">
-      <button class="btn primary" onclick="searchPeople(false)" id="searchPeopleBtn">
+      <button class="btn primary" onclick="searchPeople()" id="searchPeopleBtn">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg>
         Search
       </button>
-      <button class="btn ghost" onclick="searchPeople(true)" id="nextPeopleBtn" style="display:none">Load next page →</button>
+      <button class="btn" onclick="stopSearch()" id="stopPeopleBtn" style="display:none;border-color:#4a2a2a;background:rgba(255,92,92,0.07);color:var(--danger)">
+        &#9632; Stop
+      </button>
       <button class="btn" onclick="enrichAllEmails()" id="enrichAllBtn" style="display:none;border-color:#2a3a4a;background:rgba(92,159,255,0.07);color:var(--info)">
-        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M18 2H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm0 4l-8 5-8-5V4l8 5 8-5v2z"/></svg>
+        <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M18 2H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2V4a2 2 0 0 0-2-2zm0 4l-8 5-8-5V4l8 5 8-5v2z"/></svg>
         Enrich emails
+      </button>
+      <button class="btn" onclick="stopEnrich()" id="stopEnrichBtn" style="display:none;border-color:#4a2a2a;background:rgba(255,92,92,0.07);color:var(--danger)">
+        &#9632; Stop enriching
       </button>
       <button class="btn export-btn" onclick="exportCSV('people')" id="exportPeopleBtn" style="display:none">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M13 8V2H7v6H2l8 8 8-8h-5zM0 18h20v2H0v-2z"/></svg>
         Download CSV
       </button>
       <button class="btn ghost" onclick="clearResults('people')" id="clearPeopleBtn" style="display:none">Clear</button>
+      <label id="emailFilterWrap" style="display:none;align-items:center;gap:6px;font-size:12px;color:var(--muted);cursor:pointer;margin-left:4px">
+        <input type="checkbox" id="emailOnlyFilter" style="width:auto" onchange="renderPeopleTable()">
+        Verified emails only
+      </label>
       <span id="peopleStatus" style="display:none" class="status-badge"></span>
     </div>
     <div id="peopleResults"></div>
@@ -765,18 +773,21 @@ function switchTab(name, el) {
 }
 
 // ── FIND PEOPLE ───────────────────────────────────────────
-async function searchPeople(paginate) {
-  const defaultTxt = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg> Search`;
-  const loadingTxt = 'Searching';
-  document.getElementById('searchPeopleBtn').disabled = true;
-  document.getElementById('searchPeopleBtn').innerHTML = `<span class="spinner"></span> Searching…`;
-  setStatus('peopleStatus', 'Querying BlitzAPI…');
+let searchAborted = false;
+let enrichAborted = false;
 
-  if (!paginate) { peopleCursor = null; allPeople = []; }
+function stopSearch() {
+  searchAborted = true;
+  document.getElementById('stopPeopleBtn').style.display = 'none';
+}
+function stopEnrich() {
+  enrichAborted = true;
+  document.getElementById('stopEnrichBtn').style.display = 'none';
+}
 
+function buildPeopleBody(cursor) {
   const empSel = [...document.querySelectorAll('#emp-pills .pill.on')].map(p => p.dataset.v);
-
-  const body = {
+  return {
     company: {
       industry: { include: sv(sp('p-ind-inc')), exclude: sv(sp('p-ind-exc')) },
       name: { include: sv(sp('p-co-inc')), exclude: [] },
@@ -798,34 +809,81 @@ async function searchPeople(paginate) {
       location: { country_code: sv(sp('p-loc-cc')), city: [], continent: [], sales_region: [] },
       ...(sp('p-min-conn') ? { min_connections: parseInt(sp('p-min-conn')) } : {})
     },
-    max_results: Math.min(50, Math.max(1, parseInt(sp('p-max')) || 25)),
-    cursor: paginate ? peopleCursor : null
+    max_results: 50,
+    cursor: cursor || null
   };
+}
 
-  try {
-    const d = await blitzPost('/search/people', body);
-    if (d.error || (d.message && !d.results)) {
-      setStatus('peopleStatus', d.message || d.error || 'Error returned from API', 'err');
-      toast('Search failed', 'red');
-    } else {
+async function searchPeople() {
+  const target = Math.min(15000, Math.max(50, parseInt(sp('p-target')) || 500));
+  searchAborted = false;
+  peopleCursor = null;
+  allPeople = [];
+
+  const searchBtn = document.getElementById('searchPeopleBtn');
+  const stopBtn = document.getElementById('stopPeopleBtn');
+  searchBtn.disabled = true;
+  searchBtn.innerHTML = `<span class="spinner"></span> Loading…`;
+  stopBtn.style.display = 'inline-flex';
+  document.getElementById('enrichAllBtn').style.display = 'none';
+  document.getElementById('exportPeopleBtn').style.display = 'none';
+  document.getElementById('clearPeopleBtn').style.display = 'none';
+  document.getElementById('emailFilterWrap').style.display = 'none';
+  setStatus('peopleStatus', 'Starting search…');
+
+  let page = 0;
+
+  while (allPeople.length < target && !searchAborted) {
+    try {
+      const body = buildPeopleBody(peopleCursor);
+      const d = await blitzPost('/search/people', body);
+
+      if (d.error || (d.message && !d.results)) {
+        setStatus('peopleStatus', d.message || d.error || 'API error', 'err');
+        toast('Search error: ' + (d.message || d.error), 'red');
+        break;
+      }
+
+      const batch = d.results || [];
+      allPeople = [...allPeople, ...batch];
       peopleCursor = d.cursor || null;
-      allPeople = [...allPeople, ...(d.results || [])];
       totalPeopleResults = d.total_results || 0;
+      page++;
+
+      // Update UI every page
       renderPeopleTable();
-      setStatus('peopleStatus', `${allPeople.length.toLocaleString()} loaded · ${totalPeopleResults.toLocaleString()} total`, 'ok');
-      document.getElementById('nextPeopleBtn').style.display = peopleCursor ? 'inline-flex' : 'none';
-      document.getElementById('enrichAllBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
-      document.getElementById('exportPeopleBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
-      document.getElementById('clearPeopleBtn').style.display = allPeople.length ? 'inline-flex' : 'none';
+      setStatus('peopleStatus',
+        `Loading… ${allPeople.length.toLocaleString()} / ${Math.min(target, totalPeopleResults).toLocaleString()} · page ${page}`, '');
       updateMetric('m-loaded', allPeople.length + allCompany.length);
-      toast(`Loaded ${(d.results||[]).length} results`, 'green');
+      searchBtn.innerHTML = `<span class="spinner"></span> ${allPeople.length.toLocaleString()} loaded…`;
+
+      // Stop if no more pages
+      if (!peopleCursor || batch.length === 0) break;
+
+      // Throttle between pages — stay under rate limit
+      await new Promise(r => setTimeout(r, 250));
+
+    } catch (e) {
+      setStatus('peopleStatus', 'Network error: ' + e.message, 'err');
+      toast('Network error', 'red');
+      break;
     }
-  } catch (e) {
-    setStatus('peopleStatus', 'Network error: ' + e.message, 'err');
-    toast('Network error', 'red');
   }
-  document.getElementById('searchPeopleBtn').disabled = false;
-  document.getElementById('searchPeopleBtn').innerHTML = defaultTxt;
+
+  const reason = searchAborted ? ' (stopped)' : '';
+  setStatus('peopleStatus',
+    `${allPeople.length.toLocaleString()} leads loaded · ${totalPeopleResults.toLocaleString()} total matches${reason}`, 'ok');
+
+  searchBtn.disabled = false;
+  searchBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg> Search`;
+  stopBtn.style.display = 'none';
+
+  if (allPeople.length) {
+    document.getElementById('enrichAllBtn').style.display = 'inline-flex';
+    document.getElementById('exportPeopleBtn').style.display = 'inline-flex';
+    document.getElementById('clearPeopleBtn').style.display = 'inline-flex';
+  }
+  toast(`${allPeople.length.toLocaleString()} leads loaded`, 'green');
 }
 
 function renderPeopleTable() {
@@ -833,8 +891,10 @@ function renderPeopleTable() {
     document.getElementById('peopleResults').innerHTML = `<div class="results-wrap"><div class="empty-state"><div class="empty-icon">⌕</div>No results found for these filters.</div></div>`;
     return;
   }
+  const emailOnly = document.getElementById('emailOnlyFilter') && document.getElementById('emailOnlyFilter').checked;
+  const displayPeople = emailOnly ? allPeople.filter(p => p._email) : allPeople;
   const enrichedCount = allPeople.filter(p => p._email).length;
-  const rows = allPeople.map((p, i) => {
+  const rows = displayPeople.map((p, i) => {
     const exp = (p.experiences || [])[0] || {};
     const loc = p.location ? [p.location.city, p.location.country_code].filter(Boolean).join(', ') : '—';
     let emailCell = '—';
@@ -863,15 +923,15 @@ function renderPeopleTable() {
     </tr>`;
   }).join('');
 
-  const emailHeader = enrichedCount > 0
-    ? `<span style="color:var(--accent);font-family:var(--mono)">${enrichedCount}</span> emails found`
-    : 'Click "Enrich emails" to find work emails';
+  const countLabel = emailOnly
+    ? `<strong>${displayPeople.length.toLocaleString()}</strong> verified leads shown (filtered from ${allPeople.length.toLocaleString()})`
+    : `<strong>${allPeople.length.toLocaleString()}</strong> contacts loaded · <strong>${totalPeopleResults.toLocaleString()}</strong> total matches`;
 
   document.getElementById('peopleResults').innerHTML = `
     <div class="results-wrap">
       <div class="results-header">
-        <span><strong>${allPeople.length.toLocaleString()}</strong> contacts loaded · <strong>${totalPeopleResults.toLocaleString()}</strong> total matches</span>
-        <span style="font-size:11px">${emailHeader}</span>
+        <span>${countLabel}</span>
+        <span style="font-size:11px;color:var(--accent)">${enrichedCount > 0 ? enrichedCount.toLocaleString() + ' emails found' : 'Click "Enrich emails" to find work emails'}</span>
       </div>
       <div class="tbl-scroll">
         <table>
@@ -900,12 +960,15 @@ async function enrichAllEmails() {
   }
 
   btn.disabled = true;
+  enrichAborted = false;
   let done = 0;
   let planError = false;
+  document.getElementById('stopEnrichBtn').style.display = 'inline-flex';
 
   for (let i = 0; i < allPeople.length; i++) {
     const p = allPeople[i];
     if (p._emailChecked) { done++; continue; }
+    if (enrichAborted) break;
 
     // Skip if no LinkedIn URL — API requires it
     if (!p.linkedin_url) {
@@ -960,6 +1023,12 @@ async function enrichAllEmails() {
 
   renderPeopleTable();
   const found = allPeople.filter(p => p._email).length;
+
+  // Show email filter toggle if any emails found
+  if (found > 0) {
+    document.getElementById('emailFilterWrap').style.display = 'inline-flex';
+  }
+  document.getElementById('stopEnrichBtn').style.display = 'none';
 
   if (planError) {
     setStatus('peopleStatus', '⚠️ Your BlitzAPI plan does not include email enrichment. You need the Unlimited Email plan ($499/mo) at app.blitz-api.ai', 'err');
@@ -1111,7 +1180,9 @@ function exportCSV(type) {
   let filename = '';
 
   if (type === 'people') {
-    rows = allPeople.map(p => {
+    const emailOnly = document.getElementById('emailOnlyFilter') && document.getElementById('emailOnlyFilter').checked;
+    const source = emailOnly ? allPeople.filter(p => p._email) : allPeople;
+    rows = source.map(p => {
       const exp = (p.experiences || [])[0] || {};
       return {
         full_name: p.full_name || '',
@@ -1180,6 +1251,11 @@ function clearResults(type) {
     document.getElementById('peopleResults').innerHTML = '';
     document.getElementById('exportPeopleBtn').style.display = 'none';
     document.getElementById('enrichAllBtn').style.display = 'none';
+    document.getElementById('stopPeopleBtn').style.display = 'none';
+    document.getElementById('stopEnrichBtn').style.display = 'none';
+    document.getElementById('emailFilterWrap').style.display = 'none';
+    const ef = document.getElementById('emailOnlyFilter');
+    if (ef) ef.checked = false;
     document.getElementById('nextPeopleBtn').style.display = 'none';
     document.getElementById('clearPeopleBtn').style.display = 'none';
     document.getElementById('peopleStatus').style.display = 'none';
