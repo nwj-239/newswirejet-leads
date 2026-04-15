@@ -908,84 +908,65 @@ async function enrichBatch(batch) {
 
 async function searchPeople() {
   const emailTarget = Math.min(15000, Math.max(50, parseInt(sp('p-target')) || 500));
+  const searchBtn = document.getElementById('searchPeopleBtn');
+  const stopBtn = document.getElementById('stopPeopleBtn');
+  const enrichBtn = document.getElementById('enrichAllBtn');
+
   searchAborted = false;
   enrichAborted = false;
   peopleCursor = null;
   allPeople = [];
 
-  const searchBtn = document.getElementById('searchPeopleBtn');
-  const stopBtn = document.getElementById('stopPeopleBtn');
-  const enrichBtn = document.getElementById('enrichAllBtn');
   searchBtn.disabled = true;
+  searchBtn.innerHTML = `<span class="spinner"></span> Loading…`;
   stopBtn.style.display = 'inline-flex';
   enrichBtn.style.display = 'none';
   document.getElementById('exportPeopleBtn').style.display = 'none';
   document.getElementById('clearPeopleBtn').style.display = 'none';
   document.getElementById('emailFilterWrap').style.display = 'none';
+  setStatus('peopleStatus', 'Starting…');
 
   let verifiedCount = 0;
   let page = 0;
 
-  const updateStatus = (phase) => {
-    const pct = emailTarget > 0 ? Math.round((verifiedCount / emailTarget) * 100) : 0;
-    setStatus('peopleStatus',
-      `${phase} · ${verifiedCount.toLocaleString()} / ${emailTarget.toLocaleString()} verified emails (${pct}%) · ${allPeople.length.toLocaleString()} leads scraped`, '');
-    searchBtn.innerHTML = `<span class="spinner"></span> ${verifiedCount}/${emailTarget} emails…`;
-    updateMetric('m-loaded', allPeople.length + allCompany.length);
-  };
-
-  let lastError = null;
-
   while (verifiedCount < emailTarget && !searchAborted) {
+    // 1. Fetch next page of leads
+    let batch = [];
     try {
       const body = buildPeopleBody(peopleCursor);
       const d = await blitzPost('/search/people', body);
-
-      // Log raw response to console for debugging
-      console.log('[BlitzAPI /search/people response]', JSON.stringify(d).slice(0, 500));
-
-      if (d.error || (!d.results && !Array.isArray(d.results))) {
-        lastError = d.message || d.error || ('Unexpected response: ' + JSON.stringify(d).slice(0, 200));
-        setStatus('peopleStatus', lastError, 'err');
-        toast('Search error — check debug panel', 'red');
-        break;
-      }
-      const batch = d.results || [];
-      if (batch.length === 0) break;
+      if (!d || !Array.isArray(d.results) || d.results.length === 0) break;
+      batch = d.results;
       allPeople = [...allPeople, ...batch];
       peopleCursor = d.cursor || null;
       totalPeopleResults = d.total_results || 0;
       page++;
-
-      updateStatus(`Enriching page ${page}`);
-      renderPeopleTable();
-      await enrichBatch(batch);
-      verifiedCount = allPeople.filter(p => p._email).length;
-      updateStatus(`Page ${page} done`);
-      renderPeopleTable();
-
-      if (allPeople.some(p => p._emailError === 'plan')) {
-        setStatus('peopleStatus', '⚠️ Plan does not include email enrichment. Upgrade to Unlimited Email ($499/mo) at app.blitz-api.ai', 'err');
-        lastError = 'plan';
-        break;
-      }
-      if (!peopleCursor || batch.length === 0) break;
-      await new Promise(r => setTimeout(r, 250));
-    } catch (e) {
-      lastError = e.message;
-      setStatus('peopleStatus', 'Network error: ' + e.message, 'err');
-      toast('Network error: ' + e.message, 'red');
+    } catch(e) {
+      setStatus('peopleStatus', 'Search error: ' + e.message, 'err');
       break;
     }
+
+    // 2. Enrich this batch immediately
+    const pct = Math.round((verifiedCount / emailTarget) * 100);
+    setStatus('peopleStatus',
+      `Page ${page} · ${verifiedCount} / ${emailTarget} verified emails (${pct}%) · ${allPeople.length} scraped`, '');
+    searchBtn.innerHTML = `<span class="spinner"></span> ${verifiedCount}/${emailTarget} emails…`;
+    renderPeopleTable();
+
+    await enrichBatch(batch);
+    verifiedCount = allPeople.filter(p => p._email).length;
+    updateMetric('m-loaded', allPeople.length + allCompany.length);
+    renderPeopleTable();
+
+    if (!peopleCursor) break;
+    await new Promise(r => setTimeout(r, 250));
   }
 
+  // Done
   verifiedCount = allPeople.filter(p => p._email).length;
-  // Only show Done if we actually loaded something — don't overwrite error messages
-  if (!lastError || allPeople.length > 0) {
-    const stopped = searchAborted ? ' (stopped early)' : '';
-    setStatus('peopleStatus',
-      `Done${stopped} · ${verifiedCount.toLocaleString()} verified emails · ${allPeople.length.toLocaleString()} leads scraped`, 'ok');
-  }
+  const stopped = searchAborted ? ' (stopped)' : '';
+  setStatus('peopleStatus',
+    `Done${stopped} · ${verifiedCount.toLocaleString()} verified emails · ${allPeople.length.toLocaleString()} leads scraped`, 'ok');
 
   searchBtn.disabled = false;
   searchBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg> Search`;
@@ -998,8 +979,8 @@ async function searchPeople() {
     document.getElementById('exportPeopleBtn').style.display = 'inline-flex';
     document.getElementById('clearPeopleBtn').style.display = 'inline-flex';
     if (verifiedCount > 0) document.getElementById('emailFilterWrap').style.display = 'inline-flex';
+    toast(`${verifiedCount.toLocaleString()} verified emails`, verifiedCount > 0 ? 'green' : '');
   }
-  toast(`${verifiedCount.toLocaleString()} verified emails found`, verifiedCount > 0 ? 'green' : '');
 }
 
 async function enrichAllEmails() {
