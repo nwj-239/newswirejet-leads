@@ -885,13 +885,20 @@ async function searchPeople() {
     updateMetric('m-loaded', allPeople.length + allCompany.length);
   };
 
+  let lastError = null;
+
   while (verifiedCount < emailTarget && !searchAborted) {
     try {
       const body = buildPeopleBody(peopleCursor);
       const d = await blitzPost('/search/people', body);
-      if (d.error || (d.message && !d.results)) {
-        setStatus('peopleStatus', d.message || d.error || 'Search API error', 'err');
-        toast('Search error', 'red');
+
+      // Log raw response to console for debugging
+      console.log('[BlitzAPI /search/people response]', JSON.stringify(d).slice(0, 500));
+
+      if (d.error || d.message || !d.results) {
+        lastError = d.message || d.error || ('Unexpected response: ' + JSON.stringify(d).slice(0, 200));
+        setStatus('peopleStatus', lastError, 'err');
+        toast('Search error — check console for details', 'red');
         break;
       }
       const batch = d.results || [];
@@ -910,21 +917,26 @@ async function searchPeople() {
 
       if (allPeople.some(p => p._emailError === 'plan')) {
         setStatus('peopleStatus', '⚠️ Plan does not include email enrichment. Upgrade to Unlimited Email ($499/mo) at app.blitz-api.ai', 'err');
+        lastError = 'plan';
         break;
       }
       if (!peopleCursor || batch.length === 0) break;
       await new Promise(r => setTimeout(r, 250));
     } catch (e) {
+      lastError = e.message;
       setStatus('peopleStatus', 'Network error: ' + e.message, 'err');
-      toast('Network error', 'red');
+      toast('Network error: ' + e.message, 'red');
       break;
     }
   }
 
   verifiedCount = allPeople.filter(p => p._email).length;
-  const stopped = searchAborted ? ' (stopped early)' : '';
-  setStatus('peopleStatus',
-    `Done${stopped} · ${verifiedCount.toLocaleString()} verified emails · ${allPeople.length.toLocaleString()} leads scraped`, 'ok');
+  // Only show Done if we actually loaded something — don't overwrite error messages
+  if (!lastError || allPeople.length > 0) {
+    const stopped = searchAborted ? ' (stopped early)' : '';
+    setStatus('peopleStatus',
+      `Done${stopped} · ${verifiedCount.toLocaleString()} verified emails · ${allPeople.length.toLocaleString()} leads scraped`, 'ok');
+  }
 
   searchBtn.disabled = false;
   searchBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path d="M12.9 14.32a8 8 0 1 1 1.41-1.41l4.4 4.4-1.42 1.42-4.4-4.4zM8 14A6 6 0 1 0 8 2a6 6 0 0 0 0 12z"/></svg> Search`;
